@@ -1,8 +1,7 @@
 // WPI 영감 자기이해 검사 · AI 심층 인터뷰 프록시 (Cloudflare Worker)
 // POST /questions  {answers:number[50]}                    → {questions:[{axes,q}]}
 // POST /interpret  {answers:number[50], interview:[{axes,q,a}]} → SSE 스트림
-// API 키는 `wrangler secret put ANTHROPIC_API_KEY`로만 넣는다.
-import Anthropic from "@anthropic-ai/sdk";
+// API 키는 `wrangler secret put GEMINI_API_KEY`로만 넣는다.
 
 /* ---------- 검사 데이터 (index.html과 동일하게 유지) ---------- */
 const AXES = {
@@ -78,10 +77,10 @@ const byKey = Object.fromEntries(ALL.map((a) => [a.k, a]));
 const AXIS_NAMES = new Set(ALL.map((a) => a.name));
 
 /* ---------- 요청당 상한 ---------- */
-// Opus 5.5는 thinking이 항상 켜져 있어서 max_tokens에 생각 토큰도 포함된다.
+// Gemini 3.x는 생각(thinking) 토큰도 maxOutputTokens에 포함될 수 있어 여유를 둔다.
 const LIMITS = {
-  questions: { max_tokens: 4000, effort: "low" },
-  interpret: { max_tokens: 8000, effort: "medium" },
+  questions: { max_tokens: 4000 },
+  interpret: { max_tokens: 8000 },
   bodyBytes: 16_000,
   questionChars: 300,
   answerChars: 800,
@@ -156,21 +155,20 @@ ${qa}
 전체 600자~900자. 인터뷰 답변을 짧게 인용해 근거를 보여라.`;
 }
 
+// Gemini responseSchema(OpenAPI 부분집합) 형식
 const QUESTIONS_SCHEMA = {
-  type: "object",
+  type: "OBJECT",
   properties: {
     questions: {
-      type: "array",
+      type: "ARRAY",
       items: {
-        type: "object",
-        properties: { axes: { type: "array", items: { type: "string" } }, q: { type: "string" } },
+        type: "OBJECT",
+        properties: { axes: { type: "ARRAY", items: { type: "STRING" } }, q: { type: "STRING" } },
         required: ["axes", "q"],
-        additionalProperties: false,
       },
     },
   },
   required: ["questions"],
-  additionalProperties: false,
 };
 
 /* ---------- 입력 검증 ---------- */
@@ -239,31 +237,56 @@ async function checkRateLimit(request, env) {
   if (!(await bump(env.RATE_LIMIT, `all:${day}`, global))) throw new HttpError(429, "rate_limited");
 }
 
-/* ---------- Anthropic 호출 ---------- */
-function baseParams(env, kind, prompt) {
-  const model = env.MODEL || "claude-opus-5-5";
-  const params = {
-    model,
-    max_tokens: LIMITS[kind].max_tokens,
-    output_config: { effort: LIMITS[kind].effort },
-    messages: [{ role: "user", content: prompt }],
+/* ---------- Gemini 호출 ---------- */
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const BLOCKED = new Set(["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION"]);
+
+function geminiBody(kind, prompt, extra = {}) {
+  return {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: LIMITS[kind].max_tokens, ...extra },
   };
-  // 안전 분류기가 거절하면 서버 쪽에서 다른 모델로 다시 돌린다. (Haiku는 미지원)
-  if (!model.includes("haiku")) {
-    params.betas = ["server-side-fallback-2026-07-01"];
-    params.fallbacks = "default";
+}
+// 무료 등급은 "high demand"(503)나 모델별 한도(429)가 자주 난다.
+// 같은 모델로 한 번 더 시도하고, 그래도 안 되면 FALLBACK_MODEL로 넘어간다.
+const RETRYABLE = new Set([429, 500, 503]);
+async function geminiFetch(env, method, body) {
+  const primary = env.MODEL || "gemini-3.8-flash";
+  const fallback = env.FALLBACK_MODEL || "gemini-3.5-flash-lite";
+  const attempts = [primary, primary, ...(fallback && fallback !== primary ? [fallback] : [])];
+  const qs = method === "streamGenerateContent" ? "?alt=sse" : "";
+  let status = 0;
+  for (let i = 0; i < attempts.length; i++) {
+    if (i === 1) await new Promise((r) => setTimeout(r, 800));
+    const res = await fetch(`${GEMINI_BASE}/${encodeURIComponent(attempts[i])}:${method}${qs}`, {
+      method: "POST",
+      // 키는 URL(?key=)이 아니라 헤더로 보내서 로그에 남지 않게 한다.
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return res;
+    status = res.status;
+    console.error("gemini error", attempts[i], status, (await res.text()).slice(0, 300));
+    if (!RETRYABLE.has(status)) break;
   }
-  return params;
+  throw new HttpError(status === 429 || status === 503 ? 503 : 502, status === 429 || status === 503 ? "busy" : "upstream");
+}
+// 응답 한 덩어리에서 글(생각 요약 제외)과 종료 이유를 꺼낸다.
+function readChunk(data) {
+  if (data.promptFeedback?.blockReason) return { text: "", finish: "SAFETY" };
+  const c = data.candidates?.[0];
+  const text = (c?.content?.parts || []).filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join("");
+  return { text, finish: c?.finishReason };
 }
 
 async function handleQuestions(body, env, origin) {
   const answers = parseAnswers(body.answers);
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const params = baseParams(env, "questions", questionsPrompt(answers));
-  params.output_config.format = { type: "json_schema", schema: QUESTIONS_SCHEMA };
-  const msg = await client.beta.messages.create(params);
-  if (msg.stop_reason === "refusal") throw new HttpError(422, "refused");
-  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  const res = await geminiFetch(env, "generateContent", geminiBody("questions", questionsPrompt(answers), {
+    responseMimeType: "application/json",
+    responseSchema: QUESTIONS_SCHEMA,
+  }));
+  const { text, finish } = readChunk(await res.json());
+  if (BLOCKED.has(finish)) throw new HttpError(422, "refused");
   let data;
   try { data = JSON.parse(text); } catch { throw new HttpError(502, "invalid_json"); }
   const questions = (data.questions || [])
@@ -274,11 +297,11 @@ async function handleQuestions(body, env, origin) {
   return json({ questions }, 200, origin);
 }
 
-function handleInterpret(body, env, origin) {
+async function handleInterpret(body, env, origin) {
   const answers = parseAnswers(body.answers);
   const interview = parseInterview(body.interview);
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const params = baseParams(env, "interpret", interpretPrompt(answers, interview));
+  // 연결 오류는 스트림을 열기 전에 알려야 브라우저가 일반 오류로 처리할 수 있다.
+  const upstream = await geminiFetch(env, "streamGenerateContent", geminiBody("interpret", interpretPrompt(answers, interview)));
 
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -286,21 +309,30 @@ function handleInterpret(body, env, origin) {
   const send = (event, data) => writer.write(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 
   (async () => {
+    let finish = null;
     try {
-      const stream = client.beta.messages.stream(params);
-      for await (const ev of stream) {
-        if (ev.type === "content_block_start" && ev.content_block.type === "fallback") {
-          // 원래 모델이 중간에 거절하고 대체 모델이 이어 쓴다 → 화면의 글을 비우고 다시 받는다.
-          await send("reset", {});
-        } else if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
-          await send("text", { t: ev.delta.text });
+      const reader = upstream.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const chunk = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const data = chunk.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("");
+          if (!data) continue;
+          const part = readChunk(JSON.parse(data));
+          if (part.text) await send("text", { t: part.text });
+          if (part.finish) finish = part.finish;
         }
       }
-      const final = await stream.finalMessage();
-      await send("done", { truncated: final.stop_reason === "max_tokens", refused: final.stop_reason === "refusal" });
+      await send("done", { truncated: finish === "MAX_TOKENS", refused: BLOCKED.has(finish) });
     } catch (e) {
-      console.error("interpret failed", e?.status, e?.message);
-      await send("error", { code: e?.status === 429 ? "rate_limited" : "upstream" });
+      console.error("interpret stream failed", e?.message);
+      await send("error", { code: "upstream" });
     } finally {
       await writer.close();
     }
@@ -328,7 +360,7 @@ export default {
     if (request.method !== "POST" || !["/questions", "/interpret"].includes(pathname)) {
       return json({ error: { code: "not_found" } }, 404, origin);
     }
-    if (!env.ANTHROPIC_API_KEY) return json({ error: { code: "not_configured" } }, 500, origin);
+    if (!env.GEMINI_API_KEY) return json({ error: { code: "not_configured" } }, 500, origin);
 
     try {
       const body = await readJson(request);
@@ -336,7 +368,7 @@ export default {
       parseAnswers(body.answers);
       if (pathname === "/interpret") parseInterview(body.interview);
       await checkRateLimit(request, env);
-      return pathname === "/questions" ? await handleQuestions(body, env, origin) : handleInterpret(body, env, origin);
+      return pathname === "/questions" ? await handleQuestions(body, env, origin) : await handleInterpret(body, env, origin);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: { code: e.code } }, e.status, origin);
       console.error("request failed", e?.status, e?.message);

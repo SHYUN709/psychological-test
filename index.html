@@ -476,7 +476,7 @@ ${ALL.map(a=>`- ${a.name}: ${a.desc}`).join("\n")}
 
 // GitHub Pages처럼 window.claude가 없는 곳에서 부를 프록시 주소 (README 참고).
 // 비워두면 그런 곳에서는 AI 인터뷰를 숨긴다. 예: "https://wpi-ai-proxy.<계정>.workers.dev"
-const AI_PROXY = "";
+const AI_PROXY = "https://wpi-ai-proxy.wpi-ai-proxy.workers.dev";
 
 let ai=null, ctl=null, aiQuestions=[];
 const AI_INTRO = $("aiIntro").textContent;
@@ -496,7 +496,7 @@ function hideAI(){
   $("aiStart").hidden=true;
 }
 function aiError(e){
-  const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"오늘 쓸 수 있는 AI 횟수를 다 썼거나 요청이 너무 많아. 내일 다시 해줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",forbidden_origin:"이 주소에서는 AI 서버를 쓸 수 없어.",refused:"AI가 이 내용에는 답하지 않았어. 답변을 조금 바꿔서 다시 해줘.",not_configured:"AI 서버 설정이 아직 안 끝났어.",cancelled:""};
+  const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"오늘 쓸 수 있는 AI 횟수를 다 썼거나 요청이 너무 많아. 내일 다시 해줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",forbidden_origin:"이 주소에서는 AI 서버를 쓸 수 없어.",refused:"AI가 이 내용에는 답하지 않았어. 답변을 조금 바꿔서 다시 해줘.",not_configured:"AI 서버 설정이 아직 안 끝났어.",busy:"지금 AI 쪽이 붐벼. 잠시 뒤 다시 눌러줘.",cancelled:""};
   if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e?.code)) hideAI();
   return m[e?.code] ?? "연결이 끊겼어. 다시 시도해줘.";
 }
