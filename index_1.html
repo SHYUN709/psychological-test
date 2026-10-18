@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="WPI 10축 개념을 빌린 50문항 자기이해 검사">
+<title>나의 마음 지도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 단일 컬럼 진행형 — 소개 → 50문항(한 장씩) → 두 개의 오각형 지도 → AI 인터뷰 */
+:root{
+  --bg:#F3F4F7; --surface:#FFFFFF; --ink:#1A1F36; --muted:#5D6480; --line:#DADDE7;
+  --self:#2B5FD9; --self-soft:rgba(43,95,217,.16);
+  --other:#D2691E; --other-soft:rgba(210,105,30,.16);
+  --focus:#2B5FD9;
+  --display:"Gowun Batang", "Noto Serif KR", serif;
+  --body:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12152A; --surface:#1B1F38; --ink:#E8EAF4; --muted:#9AA0BD; --line:#2E3354;
+  --self:#7EA2FF; --self-soft:rgba(126,162,255,.2); --other:#F0A060; --other-soft:rgba(240,160,96,.2); --focus:#7EA2FF; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12152A; --surface:#1B1F38; --ink:#E8EAF4; --muted:#9AA0BD; --line:#2E3354;
+  --self:#7EA2FF; --self-soft:rgba(126,162,255,.2); --other:#F0A060; --other-soft:rgba(240,160,96,.2); --focus:#7EA2FF; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,6vw,40px)}
+h2{font-size:24px}
+h3{font-size:18px}
+p{margin:0}
+.muted{color:var(--muted)}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.btn{font:inherit;font-weight:600;border-radius:10px;padding:11px 18px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.opt:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.note{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:12px}
+
+/* intro */
+.hero{display:grid;grid-template-columns:1fr 240px;gap:24px;align-items:center}
+.hero>div{min-width:0;display:flex;flex-direction:column;gap:14px}
+@media (max-width:620px){.hero{grid-template-columns:1fr}.hero svg{max-width:240px;margin:0 auto}}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.axes{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:620px){.axes{grid-template-columns:1fr}}
+.axes ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.axes b{font-weight:600}
+
+/* test */
+.progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--ink);transition:width .25s}
+.qmeta{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.qtext{font-family:var(--display);font-size:clamp(20px,4.5vw,26px);line-height:1.45;min-height:3em}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.opt{font:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);cursor:pointer;font-size:12px}
+.opt span{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.opt[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.part{font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;width:max-content}
+.part.self{background:var(--self-soft);color:var(--self)}
+.part.other{background:var(--other-soft);color:var(--other)}
+
+/* result */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:620px){.charts{grid-template-columns:1fr}}
+.chart{display:flex;flex-direction:column;gap:10px;min-width:0}
+.chart svg{width:100%;max-width:320px;margin:0 auto;display:block}
+.bars{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.bar{display:grid;grid-template-columns:92px 1fr 34px;gap:8px;align-items:center}
+.bar .track{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%}
+.bar b{font-weight:500}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.reading{display:flex;flex-direction:column;gap:12px}
+.reading p{max-width:65ch}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid var(--line);margin-right:4px}
+
+/* AI */
+.qa{display:flex;flex-direction:column;gap:14px}
+.qa label{font-weight:500}
+textarea{font:inherit;width:100%;min-height:84px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);color:var(--ink);resize:vertical}
+.ai-out{max-width:68ch;display:flex;flex-direction:column;gap:10px}
+.ai-out h4{font-family:var(--display);font-size:17px;margin:8px 0 0}
+.ai-out ul{margin:0;padding-left:20px}
+.ai-out table{border-collapse:collapse;font-size:13px}
+.ai-out td,.ai-out th{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.scroll{overflow-x:auto}
+pre.prompt{white-space:pre-wrap;font-size:12.5px;line-height:1.55;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;max-height:280px;overflow:auto;margin:0}
+.status{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.progress i{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <!-- INTRO -->
+  <section id="intro" class="wrap" style="gap:24px">
+    <div class="hero">
+      <div>
+        <span class="eyebrow">자기이해 프로파일 · WPI에서 영감</span>
+        <h1>나의 마음 지도</h1>
+        <p>50개 문장에 답하면 두 장의 오각형 지도가 그려져. 하나는 <b>내가 보는 나</b>, 다른 하나는 <b>내가 삶에서 기준으로 삼는 것</b>이야. 점수가 애매한 부분은 AI가 꼬리 질문으로 더 물어봐.</p>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--self)"></i>자기평가 5축</span>
+          <span><i class="dot" style="background:var(--other)"></i>타인평가 5축</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="startBtn">검사 시작 (약 7분)</button>
+          <button class="btn ghost" id="resumeBtn" hidden>이어서 하기</button>
+        </div>
+      </div>
+      <svg id="sampleRadar" viewBox="0 0 300 300" role="img" aria-label="예시 결과 오각형 차트"></svg>
+    </div>
+    <p class="note">정식 WPI 검사가 아니야. WPI의 10개 축 개념만 빌리고 문항과 해석은 새로 만들었어. 오른쪽 그림은 예시 결과야.</p>
+
+    <div class="panel">
+      <h3>10개 축</h3>
+      <div class="axes" id="axisList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3>프롬프트만 쓰고 싶다면</h3>
+        <button class="btn ghost" id="copyPrompt">프롬프트 복사</button>
+      </div>
+      <p class="muted">Claude나 ChatGPT 새 대화에 붙여넣고 "시작"이라고 보내면, 문항 없이 대화만으로 인터뷰해서 같은 10축 프로파일을 내줘.</p>
+      <pre class="prompt" id="promptView"></pre>
+    </div>
+  </section>
+
+  <!-- TEST -->
+  <section id="test" class="panel" hidden>
+    <div class="qmeta"><span id="qPart"></span><span id="qCount"></span></div>
+    <div class="progress"><i id="bar" style="width:0"></i></div>
+    <p class="qtext" id="qText"></p>
+    <div class="scale" id="scale" role="group" aria-label="응답 척도"></div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn ghost" id="prevBtn">이전</button>
+      <span class="status">키보드 1~5로도 답할 수 있어</span>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="wrap" hidden style="gap:24px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="eyebrow">결과</span>
+      <h2 id="headline"></h2>
+      <p class="muted" id="subline"></p>
+    </div>
+    <div class="panel">
+      <div class="charts">
+        <div class="chart">
+          <span class="part self">자기평가 · 나는 어떤 사람인가</span>
+          <svg id="radarSelf" viewBox="0 0 300 300" role="img" aria-label="자기평가 오각형 차트"></svg>
+          <div class="bars" id="barsSelf"></div>
+        </div>
+        <div class="chart">
+          <span class="part other">타인평가 · 무엇을 기준으로 사는가</span>
+          <svg id="radarOther" viewBox="0 0 300 300" role="img" aria-label="타인평가 오각형 차트"></svg>
+          <div class="bars" id="barsOther"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel reading" id="reading"></div>
+
+    <div class="panel" id="aiPanel">
+      <h3>AI 심층 인터뷰</h3>
+      <p class="muted" id="aiIntro">점수가 비슷하게 갈린 축을 중심으로 AI가 질문 3개를 만들어. 답하면 문항 점수와 대화 내용을 합쳐 최종 해석을 써줘.</p>
+      <div class="row"><button class="btn" id="aiStart">질문 받기</button><span class="status" id="aiStatus"></span></div>
+      <div class="qa" id="qaBox" hidden></div>
+      <div class="row" id="aiSubmitRow" hidden><button class="btn" id="aiSubmit">최종 해석 받기</button><button class="btn ghost" id="aiStop" hidden>중지</button></div>
+      <div class="ai-out" id="aiOut"></div>
+    </div>
+
+    <div class="row">
+      <button class="btn ghost" id="copyResult">결과를 프롬프트로 복사</button>
+      <button class="btn ghost" id="retake">다시 검사하기</button>
+    </div>
+    <p class="note">"결과를 프롬프트로 복사"를 누르면 점수가 담긴 요청문이 복사돼. 다른 AI 채팅에 붙여넣으면 이어서 상담할 수 있어.</p>
+  </section>
+</div>
+
+<script type="text/plain" id="promptSrc">너는 "자기이해 프로파일 인터뷰어"다. 황상민 박사의 WPI(Whang's Personality Inventory)에서 쓰는 10개 축의 개념을 빌려, 대화형 인터뷰로 사용자의 프로파일을 추정한다. 정식 WPI 검사가 아니며 공식 문항도 쓰지 않는다. 첫 메시지에서 이 점을 한 문장으로 알린다.
+
+## 10개 축
+[자기평가: 나는 어떤 사람인가]
+- 리얼리스트: 현실적 기준, 남들이 인정하는 성과와 안정을 중시한다.
+- 로맨티스트: 감정과 관계의 미묘한 흐름에 민감하고, 상처와 불안을 쉽게 느끼는 섬세함.
+- 휴머니스트: 사람들과 어울리며 조화와 편안함을 만들고, 분위기를 이끈다.
+- 아이디얼리스트: 가치·의미·이상을 좇고, 자기만의 생각과 질문이 많다.
+- 에이전트: 주어진 역할과 과제를 완수하는 데 집중하고, 효율과 성취를 중시한다.
+[타인평가: 나는 무엇을 기준으로 살아가는가]
+- 릴레이션: 다른 사람과의 관계와 인정을 통해 나를 확인한다.
+- 트러스트: 약속·원칙·옳고 그름 같은 믿음의 기준을 지킨다.
+- 매뉴얼: 정해진 규칙·절차·검증된 방식 안에서 안정감을 느낀다.
+- 셀프: 스스로 납득한 답, 자기 주관과 자기 방식을 중시한다.
+- 컬처: 취향·분위기·세련됨 등 문화적 품격과 경험을 중시한다.
+
+## 진행 방식
+1. 워밍업: 요즘 일상과 최근 기뻤던/힘들었던 일을 묻는 열린 질문 2개.
+2. 탐색: 구체적인 상황 질문을 한 번에 하나씩 던진다. (예: "조별과제에서 한 명이 연락이 안 될 때 너는 보통 어떻게 해?")
+   - 한 질문이 여러 축을 동시에 드러내도록 설계한다.
+   - 답이 짧거나 모호하면 꼬리 질문을 하나 붙인다.
+   - 필요하면 "1(전혀 아니다)~5(매우 그렇다)로 하면 몇이야?" 하고 척도로 확인한다.
+   - 정답을 암시하거나 좋은 쪽/나쁜 쪽을 드러내는 표현은 쓰지 않는다.
+   - 총 12~15개 질문. 사용자가 짧게 원하면 8개로 줄인다.
+   - 중간 해석은 하지 않는다. (응답이 편향됨)
+3. 결과를 아래 형식으로 출력한다.
+
+## 결과 형식
+1) 점수표: | 축 | 점수(0~100) | 근거(사용자 답변 짧게 인용) | — 자기평가 5축, 타인평가 5축 표를 따로.
+2) 프로파일 해석
+- 가장 높은 축과 가장 낮은 축을 함께 해석한다. (1등 유형 하나보다 전체 모양을 본다)
+- 자기평가 1위 × 타인평가 1위 조합이 삶에서 어떻게 드러나는지 구체적 장면으로 설명한다.
+- 점수 차가 15점 이내로 평평하면 "상황에 따라 다른 모습이 나오거나, 자기 모습을 탐색 중인 상태"일 수 있다고 말한다.
+- 강점 2개, 마음이 지치기 쉬운 지점 2개.
+3) 확신도: 각 축의 근거가 충분했는지 높음/보통/낮음으로 표시하고, 낮은 축은 어떤 질문을 더 하면 좋을지 제안한다.
+
+## 규칙
+- 성격 유형은 우열이 없다. 병리적 진단, 정신건강 판정은 하지 않는다.
+- 사용자의 말투에 맞춰 편하게 대화한다. 한 메시지에 질문은 하나만.
+- 사용자가 심한 고통을 드러내면 인터뷰를 멈추고 그 이야기를 먼저 듣는다.</script>
+
+<script>
+const AXES = {
+  self: [
+    {k:"R", name:"리얼리스트", short:"현실형", desc:"현실적 기준과 눈에 보이는 성과, 안정을 중시해.",
+      hi:"확실한 길을 고르고 결과로 증명하려는 힘이 강해. 대신 남들이 정한 기준에 맞추느라 스스로를 몰아붙일 수 있어.",
+      lo:"남들이 정한 기준이나 스펙에 크게 휘둘리지 않는 편이야."},
+    {k:"M", name:"로맨티스트", short:"감성형", desc:"감정과 관계의 미묘한 흐름에 민감하고 섬세해.",
+      hi:"분위기와 사람 마음을 잘 읽는 대신, 작은 말에도 오래 마음이 쓰이고 불안이 쉽게 커질 수 있어.",
+      lo:"감정 기복이 적고 일이 생겨도 비교적 담담하게 넘기는 편이야."},
+    {k:"H", name:"휴머니스트", short:"사교형", desc:"사람들과 어울리며 조화와 편안함을 만들어.",
+      hi:"모임의 분위기를 만들고 사람을 챙기는 데서 에너지를 얻어. 혼자 남는 시간이 길어지면 힘이 빠질 수 있어.",
+      lo:"넓은 관계보다 혼자 있거나 소수와 있는 시간이 더 편한 편이야."},
+    {k:"I", name:"아이디얼리스트", short:"이상형", desc:"가치와 의미, 이상을 좇고 생각이 많아.",
+      hi:"'왜?'를 묻고 나만의 의미를 찾는 힘이 있어. 현실과 이상의 차이 때문에 답답함을 자주 느낄 수 있어.",
+      lo:"추상적인 의미보다 지금 당장의 구체적인 일에 집중하는 편이야."},
+    {k:"A", name:"에이전트", short:"과제형", desc:"맡은 역할과 과제를 끝까지 완수하는 데 집중해.",
+      hi:"목표와 계획으로 일을 밀고 나가는 힘이 강해. 할 일이 없거나 성과가 안 보이면 내 가치까지 흔들릴 수 있어.",
+      lo:"성취나 효율보다 과정과 느낌을 더 중요하게 보는 편이야."}
+  ],
+  other: [
+    {k:"RL", name:"릴레이션", short:"관계", desc:"관계와 주변의 인정 속에서 나를 확인해.",
+      hi:"사람들이 나를 어떻게 보는지가 판단의 큰 기준이야. 관계가 흔들리면 나도 함께 흔들릴 수 있어.",
+      lo:"남의 평가보다 다른 기준으로 나를 확인하는 편이야."},
+    {k:"T", name:"트러스트", short:"믿음", desc:"약속과 원칙, 옳고 그름의 기준을 지켜.",
+      hi:"신뢰를 지키는 사람이라는 게 나를 지탱해. 기준이 엄격해서 남과 나 모두에게 실망하기 쉬워.",
+      lo:"원칙보다 상황에 맞게 유연하게 판단하는 편이야."},
+    {k:"MN", name:"매뉴얼", short:"체계", desc:"정해진 규칙과 검증된 방식 안에서 안정감을 느껴.",
+      hi:"절차와 역할이 분명할 때 가장 잘해. 갑작스러운 변화나 정답 없는 상황에서 스트레스가 커져.",
+      lo:"정해진 틀 없이도 즉흥적으로 잘 움직이는 편이야."},
+    {k:"S", name:"셀프", short:"주관", desc:"스스로 납득한 답과 내 방식을 중시해.",
+      hi:"내가 직접 찾은 답을 믿고 밀고 나가. 간섭을 받으면 의욕이 크게 꺾일 수 있어.",
+      lo:"혼자 정하기보다 주변과 맞춰 가며 결정하는 편이야."},
+    {k:"C", name:"컬처", short:"취향", desc:"취향과 분위기, 세련됨 같은 문화적 품격을 중시해.",
+      hi:"나만의 취향과 스타일이 분명하고 경험에 투자해. 내 기준에 안 맞는 환경에서는 쉽게 지쳐.",
+      lo:"멋이나 스타일보다 실용과 내용을 먼저 보는 편이야."}
+  ]
+};
+
+const ITEMS = [
+  // 자기평가
+  ["R","막연한 꿈보다 지금 손에 잡히는 결과가 더 중요하다."],
+  ["M","다른 사람의 말 한마디에 오래 마음이 쓰인다."],
+  ["H","처음 보는 사람들과도 금방 어울린다."],
+  ["I","남들이 다 가는 길보다 나만의 의미가 있는 길을 가고 싶다."],
+  ["A","일을 맡으면 끝까지 해내야 마음이 편하다."],
+  ["R","학점, 스펙처럼 남들이 인정하는 기준을 맞추면 안심이 된다."],
+  ["M","대화 분위기가 조금만 달라져도 금방 알아챈다."],
+  ["H","모임에서 분위기를 띄우거나 사람들을 챙기는 역할을 자주 맡는다."],
+  ["I","'왜 꼭 이렇게 해야 하지?'라는 질문을 자주 한다."],
+  ["A","목표를 세우고 계획대로 하나씩 처리하는 게 좋다."],
+  ["R","위험한 도전보다 확실한 선택을 하는 편이다."],
+  ["M","걱정되는 일이 생기면 쉽게 머릿속을 떠나지 않는다."],
+  ["H","혼자보다 여럿이 함께할 때 에너지가 생긴다."],
+  ["I","새로운 아이디어나 생각을 떠올리는 게 즐겁다."],
+  ["A","감정보다 해야 할 일에 먼저 집중한다."],
+  ["R","노력한 만큼 눈에 보이는 성과가 나와야 만족한다."],
+  ["M","나를 진심으로 이해해주는 사람 몇 명이면 충분하다."],
+  ["H","사람들 사이가 어색하면 내가 나서서 풀고 싶다."],
+  ["I","현실이 답답해도 내가 그리는 이상을 쉽게 포기하지 않는다."],
+  ["A","일을 잘한다는 평가를 받을 때 가장 뿌듯하다."],
+  ["R","선택할 때 현실적으로 따져보고 손해 보지 않는 쪽을 고른다."],
+  ["M","갈등이 생기면 맞서기보다 혼자 속으로 삭이는 편이다."],
+  ["H","주변에서 '같이 있으면 편하다'는 말을 자주 듣는다."],
+  ["I","사람들과 어울리는 것보다 혼자 생각하는 시간이 꼭 필요하다."],
+  ["A","비효율적인 방식을 보면 고치고 싶어진다."],
+  // 타인평가
+  ["RL","다른 사람들이 나를 어떻게 생각하는지 신경 쓰인다."],
+  ["T","한번 한 약속은 손해를 보더라도 지킨다."],
+  ["MN","처음 하는 일은 정해진 방법이나 가이드부터 찾아본다."],
+  ["S","남이 정해준 답보다 내가 직접 찾은 답을 믿는다."],
+  ["C","음악, 영화, 공간 등에서 나만의 취향이 확실하다."],
+  ["RL","연락이 뜸해지면 관계가 멀어진 건 아닌지 걱정된다."],
+  ["T","옳고 그름에 대한 나만의 기준이 분명하다."],
+  ["MN","규칙이나 절차가 명확할 때 일하기 편하다."],
+  ["S","남의 시선보다 내가 납득하는 것이 더 중요하다."],
+  ["C","같은 일이라도 멋있고 세련되게 하고 싶다."],
+  ["RL","내가 속한 무리에서 인정받는 것이 중요하다."],
+  ["T","신뢰를 깬 사람과는 다시 가까워지기 어렵다."],
+  ["MN","계획이 즉흥적으로 바뀌면 스트레스를 받는다."],
+  ["S","내 생각을 분명하게 표현하는 편이다."],
+  ["C","전시, 공연, 여행 같은 경험에 쓰는 돈은 아깝지 않다."],
+  ["RL","중요한 결정을 할 때 가까운 사람들의 의견을 많이 참고한다."],
+  ["T","남들이 안 볼 때도 규칙과 도리를 지키려 한다."],
+  ["MN","검증된 방식대로 하는 것이 가장 안전하다고 생각한다."],
+  ["S","간섭받지 않고 내 방식대로 할 때 가장 잘한다."],
+  ["C","사람을 볼 때 그 사람의 분위기나 교양을 눈여겨본다."],
+  ["RL","누군가에게 필요한 사람이 되었을 때 내 가치를 느낀다."],
+  ["T","'믿을 수 있는 사람'이라는 평가가 무엇보다 중요하다."],
+  ["MN","내 역할과 할 일이 분명하게 정해져 있으면 좋다."],
+  ["S","나라는 사람이 어떤 사람인지 자주 생각한다."],
+  ["C","유행을 따르기보다 나에게 어울리는 스타일을 찾는다."]
+];
+const SELF_COUNT = 25;
+const LABELS = ["전혀 아니다","아니다","보통","그렇다","매우 그렇다"];
+const ALL = [...AXES.self, ...AXES.other];
+const byKey = Object.fromEntries(ALL.map(a=>[a.k,a]));
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(){ try{ return JSON.parse(localStorage.getItem("wpi-answers")||"null"); }catch(e){ return null; } },
+  set(v){ try{ localStorage.setItem("wpi-answers", JSON.stringify(v)); }catch(e){} },
+  clear(){ try{ localStorage.removeItem("wpi-answers"); }catch(e){} }
+};
+
+let answers = new Array(ITEMS.length).fill(null);
+let idx = 0;
+
+/* ---------- radar ---------- */
+function radar(svg, axes, scores, color, soft){
+  const cx=150, cy=152, R=92, n=axes.length;
+  const pt=(i,r)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+r*Math.cos(a), cy+r*Math.sin(a)];};
+  let h="";
+  [20,40,60,80,100].forEach(v=>{
+    const p=axes.map((_,i)=>pt(i,R*v/100).join(",")).join(" ");
+    h+=`<polygon points="${p}" fill="none" stroke="var(--line)" stroke-width="1"/>`;
+  });
+  axes.forEach((_,i)=>{const [x,y]=pt(i,R);h+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--line)"/>`;});
+  const poly=axes.map((a,i)=>pt(i,R*(scores[a.k]??0)/100).join(",")).join(" ");
+  h+=`<polygon points="${poly}" fill="${soft}" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+  axes.forEach((a,i)=>{const [x,y]=pt(i,R*(scores[a.k]??0)/100);h+=`<circle cx="${x}" cy="${y}" r="3.5" fill="${color}"/>`;});
+  axes.forEach((a,i)=>{
+    const [x,y]=pt(i,R+26);
+    const anchor = Math.abs(x-cx)<8?"middle":(x>cx?"start":"end");
+    const dx = anchor==="start"?-6:anchor==="end"?6:0;
+    h+=`<text x="${x+dx}" y="${y}" text-anchor="${anchor}" font-size="12.5" font-weight="600" fill="var(--ink)" font-family="IBM Plex Sans KR, sans-serif">${a.name}</text>`;
+    h+=`<text x="${x+dx}" y="${y+15}" text-anchor="${anchor}" font-size="11" fill="var(--muted)" font-family="IBM Plex Sans KR, sans-serif">${scores[a.k]??0}</text>`;
+  });
+  svg.innerHTML=h;
+}
+
+/* ---------- intro ---------- */
+function initIntro(){
+  radar($("sampleRadar"), AXES.self, {R:62,M:38,H:71,I:55,A:84}, "var(--self)", "var(--self-soft)");
+  const col=(title, list)=>`<div><p class="eyebrow" style="margin-bottom:8px">${title}</p><ul>${list.map(a=>`<li><b>${a.name}</b> <span class="muted">(${a.short})</span> — ${a.desc}</li>`).join("")}</ul></div>`;
+  $("axisList").innerHTML = col("자기평가 · 나는 어떤 사람인가", AXES.self) + col("타인평가 · 무엇을 기준으로 사는가", AXES.other);
+  $("promptView").textContent = $("promptSrc").textContent;
+  const saved = store.get();
+  if(saved && Array.isArray(saved.answers) && saved.answers.length===ITEMS.length && saved.answers.some(v=>v!=null)){
+    $("resumeBtn").hidden=false;
+    $("resumeBtn").onclick=()=>{answers=saved.answers; idx=Math.min(saved.answers.findIndex(v=>v==null), ITEMS.length-1); if(idx<0){showResult();} else startTest();};
+  }
+}
+
+/* ---------- test ---------- */
+function startTest(){
+  $("intro").hidden=true; $("result").hidden=true; $("test").hidden=false;
+  render(); window.scrollTo(0,0);
+}
+function render(){
+  const [k,text]=ITEMS[idx];
+  const isSelf = idx<SELF_COUNT;
+  $("qPart").innerHTML = `<span class="part ${isSelf?"self":"other"}">${isSelf?"1부 · 자기평가":"2부 · 타인평가"}</span>`;
+  $("qCount").textContent = `${idx+1} / ${ITEMS.length}`;
+  $("bar").style.width = (answers.filter(v=>v!=null).length/ITEMS.length*100)+"%";
+  $("qText").textContent = text;
+  $("scale").innerHTML = LABELS.map((l,i)=>`<button class="opt" id="opt${i+1}" aria-pressed="${answers[idx]===i+1}" data-v="${i+1}"><span>${i+1}</span>${l}</button>`).join("");
+  $("scale").querySelectorAll(".opt").forEach(b=>b.onclick=()=>choose(+b.dataset.v));
+  $("prevBtn").disabled = idx===0;
+}
+function choose(v){
+  answers[idx]=v; store.set({answers});
+  render();
+  setTimeout(()=>{ if(idx<ITEMS.length-1){idx++;render();} else showResult(); },170);
+}
+$("prevBtn").onclick=()=>{ if(idx>0){idx--;render();} };
+document.addEventListener("keydown",e=>{
+  if($("test").hidden) return;
+  if(e.target.tagName==="TEXTAREA") return;
+  if(/^[1-5]$/.test(e.key)) choose(+e.key);
+  if(e.key==="ArrowLeft" && idx>0){idx--;render();}
+});
+$("startBtn").onclick=()=>{answers=new Array(ITEMS.length).fill(null); idx=0; store.set({answers}); startTest();};
+
+/* ---------- scoring ---------- */
+function score(){
+  const sum={}, cnt={};
+  ITEMS.forEach(([k],i)=>{ if(answers[i]!=null){ sum[k]=(sum[k]||0)+answers[i]; cnt[k]=(cnt[k]||0)+1; } });
+  const out={};
+  ALL.forEach(a=>{ const c=cnt[a.k]||0; out[a.k]= c? Math.round(((sum[a.k]/c)-1)/4*100) : 0; });
+  return out;
+}
+const ranked = (axes,s)=>[...axes].sort((a,b)=>s[b.k]-s[a.k]);
+
+/* ---------- result ---------- */
+let SCORES=null;
+function bars(el, axes, s, color){
+  el.innerHTML = ranked(axes,s).map(a=>`<div class="bar"><b>${a.name}</b><div class="track"><div class="fill" style="width:${s[a.k]}%;background:${color}"></div></div><span class="n">${s[a.k]}</span></div>`).join("");
+}
+function shapeOf(axes,s){
+  const r=ranked(axes,s), top=r[0], second=r[1], low=r[r.length-1];
+  const spread=s[top.k]-s[low.k];
+  return {top,second,low,spread, tie: s[top.k]-s[second.k]<=5};
+}
+function showResult(){
+  $("intro").hidden=true; $("test").hidden=true; $("result").hidden=false; window.scrollTo(0,0);
+  const s=SCORES=score();
+  radar($("radarSelf"), AXES.self, s, "var(--self)", "var(--self-soft)");
+  radar($("radarOther"), AXES.other, s, "var(--other)", "var(--other-soft)");
+  bars($("barsSelf"), AXES.self, s, "var(--self)");
+  bars($("barsOther"), AXES.other, s, "var(--other)");
+  const a=shapeOf(AXES.self,s), b=shapeOf(AXES.other,s);
+  $("headline").textContent = `${a.top.name} × ${b.top.name}`;
+  $("subline").textContent = `스스로를 '${a.top.short}'으로 보고, 삶에서는 '${b.top.short}'을 기준으로 삼는 편이야.`;
+
+  const para=[];
+  para.push(`<h3>프로파일 읽기</h3>`);
+  if(a.spread<15) para.push(`<p><span class="chip">평평한 자기평가</span> 다섯 축의 차이가 ${a.spread}점밖에 안 돼. 상황마다 다른 모습이 나오거나, 아직 '나는 이런 사람'이라는 상이 정리되는 중일 수 있어. 이럴 땐 1등 유형보다 아래 AI 인터뷰 결과를 더 참고해.</p>`);
+  else para.push(`<p><span class="chip">${a.top.name} ${s[a.top.k]}</span> ${a.top.hi}</p>`);
+  if(a.tie && a.spread>=15) para.push(`<p><span class="chip">${a.second.name} ${s[a.second.k]}</span> 1위와 거의 차이가 없어서 두 성향이 함께 작동해. ${a.second.desc}</p>`);
+  para.push(`<p><span class="chip">가장 낮은 축 · ${a.low.name} ${s[a.low.k]}</span> ${a.low.lo}</p>`);
+  if(b.spread<15) para.push(`<p><span class="chip">평평한 타인평가</span> 삶의 기준이 한쪽으로 뚜렷하게 쏠려 있지 않아. 여러 기준을 상황에 따라 바꿔 쓰는 편일 수 있어.</p>`);
+  else para.push(`<p><span class="chip">${b.top.name} ${s[b.top.k]}</span> ${b.top.hi}</p>`);
+  para.push(`<p><span class="chip">가장 낮은 기준 · ${b.low.name} ${s[b.low.k]}</span> ${b.low.lo}</p>`);
+  para.push(`<p class="note">WPI식 해석은 1위 하나보다 높은 축과 낮은 축이 만드는 전체 모양을 봐. 같은 '${a.top.name}'이라도 2위와 꼴찌가 무엇이냐에 따라 전혀 다른 사람이 될 수 있어.</p>`);
+  $("reading").innerHTML=para.join("");
+  initAI();
+}
+$("retake").onclick=()=>{store.clear(); answers=new Array(ITEMS.length).fill(null); idx=0; startTest();};
+
+function scoreText(){
+  const s=SCORES;
+  return "자기평가: "+AXES.self.map(a=>`${a.name} ${s[a.k]}`).join(", ")+"\n타인평가: "+AXES.other.map(a=>`${a.name} ${s[a.k]}`).join(", ");
+}
+function itemText(){
+  return ITEMS.map(([k,t],i)=>`[${byKey[k].name}] ${t} → ${answers[i]??"-"}`).join("\n");
+}
+
+/* ---------- copy ---------- */
+async function copy(text, btn){
+  const old=btn.textContent;
+  try{ await navigator.clipboard.writeText(text); btn.textContent="복사됨"; }
+  catch(e){ btn.textContent="복사가 막혔어 · 아래 텍스트를 직접 선택해"; }
+  setTimeout(()=>btn.textContent=old,2200);
+}
+$("copyPrompt").onclick=e=>copy($("promptSrc").textContent, e.currentTarget);
+$("copyResult").onclick=e=>copy(
+  $("promptSrc").textContent+"\n\n---\n아래는 사용자가 이미 50문항 자기보고 검사(1~5점)를 마친 결과다. 이 점수를 출발점으로 삼고, 점수가 애매하거나 서로 비슷한 축을 중심으로 6~8개 질문만 인터뷰한 뒤 결과 형식대로 최종 해석하라.\n\n"+scoreText(), e.currentTarget);
+
+/* ---------- AI ---------- */
+const AI_RULES = `너는 WPI(황상민) 10축 개념을 빌린 비공식 자기이해 프로파일 해석가다. 정식 WPI가 아니다.
+축 정의:
+${ALL.map(a=>`- ${a.name}: ${a.desc}`).join("\n")}
+성격 유형에 우열은 없고, 병리적 진단은 하지 않는다. 사용자에게 반말로 편하게 말한다.`;
+
+let sampleFn=null, ctl=null, aiQuestions=[];
+async function initAI(){
+  $("aiStatus").textContent="";
+  if(!window.claude?.use){ hideAI(); return; }
+  try{ sampleFn = await window.claude.use("sample"); }catch(e){ sampleFn=null; }
+  if(!sampleFn) hideAI();
+}
+function hideAI(){
+  $("aiIntro").textContent="이 화면에서는 AI 인터뷰를 쓸 수 없어. 아래 '결과를 프롬프트로 복사'로 다른 AI 채팅에서 이어갈 수 있어.";
+  $("aiStart").hidden=true;
+}
+function aiError(e){
+  const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"요청이 너무 많아. 잠시 뒤 다시 눌러줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",cancelled:""};
+  if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e?.code)) hideAI();
+  return m[e?.code] ?? "연결이 끊겼어. 다시 시도해줘.";
+}
+$("aiStart").onclick=async()=>{
+  if(!sampleFn) return;
+  $("aiStart").disabled=true; $("aiStatus").textContent="질문을 만드는 중…";
+  const prompt = `${AI_RULES}
+
+사용자의 50문항(1~5점) 검사 결과다.
+${scoreText()}
+
+문항별 응답:
+${itemText()}
+
+이 프로파일에서 가장 불확실한 지점(1·2위 점수가 비슷한 축, 문항 응답이 서로 엇갈리는 축, 평평한 프로파일 등)을 골라, 그 축들을 가려낼 수 있는 구체적인 상황형 열린 질문 3개를 만들어라. 한 질문에 하나만 묻고, 정답을 암시하지 마라. 대학생 일상(조별과제, 동아리, 알바, 친구 관계 등) 장면이면 좋다.
+JSON만 출력: {"questions":[{"axes":["축이름","축이름"],"q":"질문"}]}`;
+  try{
+    const data = await sampleFn.json(prompt,{modelTier:"default", cache:false});
+    aiQuestions = (data?.questions||[]).slice(0,3).filter(x=>x&&x.q);
+    if(!aiQuestions.length) throw {code:"invalid_json"};
+    $("qaBox").innerHTML = aiQuestions.map((x,i)=>`<div style="display:flex;flex-direction:column;gap:6px"><label for="ans${i}">Q${i+1}. ${esc(String(x.q))}</label><span class="status">살펴보는 축: ${esc((x.axes||[]).join(", "))}</span><textarea id="ans${i}" placeholder="떠오르는 대로 편하게 써줘"></textarea></div>`).join("");
+    $("qaBox").hidden=false; $("aiSubmitRow").hidden=false; $("aiStart").hidden=true; $("aiStatus").textContent="";
+  }catch(e){ $("aiStatus").textContent=aiError(e); $("aiStart").disabled=false; }
+};
+$("aiStop").onclick=()=>ctl?.abort();
+$("aiSubmit").onclick=async()=>{
+  const qa = aiQuestions.map((x,i)=>`Q${i+1}(${(x.axes||[]).join(", ")}): ${x.q}\nA: ${($("ans"+i).value||"(무응답)").trim()}`).join("\n\n");
+  ctl=new AbortController();
+  $("aiSubmit").disabled=true; $("aiStop").hidden=false;
+  $("aiOut").innerHTML=`<p class="status">해석을 쓰는 중… (30초~1분 정도 걸려)</p>`;
+  const prompt = `${AI_RULES}
+
+[문항 검사 점수 0~100]
+${scoreText()}
+
+[문항별 응답 1~5]
+${itemText()}
+
+[심층 인터뷰]
+${qa}
+
+위 자료를 종합해 최종 해석을 써라. 형식(마크다운):
+#### 한 줄 요약
+(자기평가 1위 × 타인평가 1위 조합을 한 문장으로)
+#### 보정된 점수
+| 축 | 문항 점수 | 보정 점수 | 이유 |
+(인터뷰 답변 때문에 바뀌는 축만. 없으면 "보정 없음")
+#### 프로파일 모양
+(높은 축과 낮은 축이 함께 만드는 모습. 구체적 장면 2개)
+#### 강점
+- 2개
+#### 마음이 지치기 쉬운 지점
+- 2개와 각각에 대한 작은 제안
+#### 확신도
+(근거가 약한 축과, 더 알아보려면 스스로 물어볼 질문 1개)
+전체 600자~900자. 인터뷰 답변을 짧게 인용해 근거를 보여라.`;
+  try{
+    const {truncated} = await sampleFn(prompt,{modelTier:"default", cache:false, signal:ctl.signal, onText:({text})=>{$("aiOut").innerHTML=md(text);}});
+    if(truncated) $("aiOut").insertAdjacentHTML("beforeend",`<p class="status">답이 길어서 중간에 잘렸어.</p>`);
+  }catch(e){
+    $("aiOut").innerHTML = e?.text? md(e.text):"";
+    const msg=aiError(e); if(msg) $("aiOut").insertAdjacentHTML("beforeend",`<p class="status">${msg}</p>`);
+  }finally{ $("aiSubmit").disabled=false; $("aiStop").hidden=true; }
+};
+
+/* ---------- tiny markdown ---------- */
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function inline(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");}
+function md(src){
+  const lines=src.split("\n"); let out="", list=false, table=[];
+  const flushTable=()=>{ if(!table.length) return;
+    const rows=table.filter(r=>!/^\s*\|?\s*:?-{2,}/.test(r)).map(r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim()));
+    out+=`<div class="scroll"><table>${rows.map((r,i)=>`<tr>${r.map(c=>i?`<td>${inline(c)}</td>`:`<th>${inline(c)}</th>`).join("")}</tr>`).join("")}</table></div>`; table=[]; };
+  for(const l of lines){
+    if(/^\s*\|/.test(l)){ if(list){out+="</ul>";list=false;} table.push(l); continue; } else flushTable();
+    const h=l.match(/^#{1,6}\s+(.*)/);
+    if(h){ if(list){out+="</ul>";list=false;} out+=`<h4>${inline(h[1])}</h4>`; continue; }
+    const li=l.match(/^\s*[-*]\s+(.*)/);
+    if(li){ if(!list){out+="<ul>";list=true;} out+=`<li>${inline(li[1])}</li>`; continue; }
+    if(list){out+="</ul>";list=false;}
+    if(l.trim()) out+=`<p>${inline(l)}</p>`;
+  }
+  flushTable(); if(list) out+="</ul>";
+  return out;
+}
+
+initIntro();
+</script>
+
+</body>
+</html>
