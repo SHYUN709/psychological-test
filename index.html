@@ -477,6 +477,9 @@ ${ALL.map(a=>`- ${a.name}: ${a.desc}`).join("\n")}
 // GitHub Pages처럼 window.claude가 없는 곳에서 부를 프록시 주소 (README 참고).
 // 비워두면 그런 곳에서는 AI 인터뷰를 숨긴다. 예: "https://wpi-ai-proxy.<계정>.workers.dev"
 const AI_PROXY = "https://wpi-ai-proxy.wpi-ai-proxy.workers.dev";
+// 프록시가 허용하는 주소(worker의 ALLOWED_ORIGINS와 같게). 여기서는 window.claude가 있어도
+// (브라우저 확장 프로그램 등이 넣어둘 수 있음) 항상 프록시를 쓴다.
+const PROXY_ORIGINS = ["https://shyun709.github.io"];
 
 let ai=null, ctl=null, aiQuestions=[];
 const AI_INTRO = $("aiIntro").textContent;
@@ -485,10 +488,12 @@ async function initAI(){
   $("aiStart").hidden=false; $("aiStart").disabled=false;
   $("qaBox").hidden=true; $("aiSubmitRow").hidden=true; $("aiOut").innerHTML="";
   ai=null;
+  const proxy = AI_PROXY ? AI_PROXY.replace(/\/+$/,"") : "";
+  if(proxy && PROXY_ORIGINS.includes(location.origin)){ ai=proxyBackend(proxy); return; }
   if(window.claude?.use){
     try{ const fn = await window.claude.use("sample"); if(fn) ai=claudeBackend(fn); }catch(e){}
   }
-  if(!ai && AI_PROXY) ai=proxyBackend(AI_PROXY.replace(/\/+$/,""));
+  if(!ai && proxy) ai=proxyBackend(proxy);
   if(!ai) hideAI();
 }
 function hideAI(){
