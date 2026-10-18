@@ -16,3 +16,7 @@ FALLBACK_MODEL = "gemini-3.5-flash-lite"  # MODEL이 붐비거나(503) 한도(42
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
 id = "f1d82a3ee5fa4e6f8bce068cc9b0166f"
+
+# 지난 요청 로그를 대시보드(Workers → wpi-ai-proxy → Logs)에서 볼 수 있게
+[observability]
+enabled = true

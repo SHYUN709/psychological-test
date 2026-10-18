@@ -95,6 +95,11 @@ textarea{font:inherit;width:100%;min-height:84px;border:1px solid var(--line);bo
 .scroll{overflow-x:auto}
 pre.prompt{white-space:pre-wrap;font-size:12.5px;line-height:1.55;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;max-height:280px;overflow:auto;margin:0}
 .status{font-size:13px;color:var(--muted)}
+.btn.cta{background:var(--self);border-color:var(--self);color:var(--surface);font-size:16px;padding:14px 22px}
+.ai-panel{border:2px solid var(--self)}
+.nudge{background:var(--self-soft);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.nudge p{flex:1 1 220px}
+@media (max-width:560px){.btn.cta{width:100%}}
 @media (prefers-reduced-motion:reduce){.progress i{transition:none}}
 </style>
 </head>
@@ -157,6 +162,10 @@ pre.prompt{white-space:pre-wrap;font-size:12.5px;line-height:1.55;background:var
       <h2 id="headline"></h2>
       <p class="muted" id="subline"></p>
     </div>
+    <div class="nudge" id="aiNudge" hidden>
+      <p><b>아직 끝이 아니야.</b> 아래 AI 심층 인터뷰에서 질문 3개에 답하면 점수를 보정한 더 정확한 해석을 받을 수 있어.</p>
+      <button class="btn cta" id="aiNudgeBtn">AI 질문 3개 받기 ↓</button>
+    </div>
     <div class="panel">
       <div class="charts">
         <div class="chart">
@@ -173,12 +182,12 @@ pre.prompt{white-space:pre-wrap;font-size:12.5px;line-height:1.55;background:var
     </div>
     <div class="panel reading" id="reading"></div>
 
-    <div class="panel" id="aiPanel">
+    <div class="panel ai-panel" id="aiPanel">
       <h3>AI 심층 인터뷰</h3>
-      <p class="muted" id="aiIntro">점수가 비슷하게 갈린 축을 중심으로 AI가 질문 3개를 만들어. 답하면 문항 점수와 대화 내용을 합쳐 최종 해석을 써줘.</p>
-      <div class="row"><button class="btn" id="aiStart">질문 받기</button><span class="status" id="aiStatus"></span></div>
+      <p class="muted" id="aiIntro">점수가 비슷하게 갈린 축을 AI가 질문 3개로 더 물어봐. <b>① 질문 받기 → ② 답 쓰기 → ③ 최종 해석 받기</b> 순서로 진행해.</p>
+      <div class="row"><button class="btn cta" id="aiStart">① AI 질문 3개 받기</button><span class="status" id="aiStatus"></span></div>
       <div class="qa" id="qaBox" hidden></div>
-      <div class="row" id="aiSubmitRow" hidden><button class="btn" id="aiSubmit">최종 해석 받기</button><button class="btn ghost" id="aiStop" hidden>중지</button></div>
+      <div class="row" id="aiSubmitRow" hidden><button class="btn cta" id="aiSubmit">③ 최종 해석 받기</button><button class="btn ghost" id="aiStop" hidden>중지</button></div>
       <div class="ai-out" id="aiOut"></div>
     </div>
 
@@ -483,9 +492,9 @@ const AI_PROXY = "https://wpi-ai-proxy.wpi-ai-proxy.workers.dev";
 const PROXY_ORIGINS = ["https://shyun709.github.io"];
 
 let ai=null, ctl=null, aiQuestions=[];
-const AI_INTRO = $("aiIntro").textContent;
+const AI_INTRO = $("aiIntro").innerHTML;
 async function initAI(){
-  $("aiStatus").textContent=""; $("aiIntro").textContent=AI_INTRO;
+  $("aiStatus").textContent=""; $("aiIntro").innerHTML=AI_INTRO; $("aiNudge").hidden=false;
   $("aiStart").hidden=false; $("aiStart").disabled=false;
   $("qaBox").hidden=true; $("aiSubmitRow").hidden=true; $("aiOut").innerHTML="";
   ai=null;
@@ -499,8 +508,10 @@ async function initAI(){
 }
 function hideAI(){
   $("aiIntro").textContent="이 화면에서는 AI 인터뷰를 쓸 수 없어. 아래 '결과를 프롬프트로 복사'로 다른 AI 채팅에서 이어갈 수 있어.";
-  $("aiStart").hidden=true;
+  $("aiStart").hidden=true; $("aiNudge").hidden=true;
 }
+const scrollIntoViewSmooth = el=>el.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth", block:"start"});
+$("aiNudgeBtn").onclick=()=>{ scrollIntoViewSmooth($("aiPanel")); if(!$("aiStart").hidden && !$("aiStart").disabled) $("aiStart").click(); };
 function aiError(e){
   const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"오늘 쓸 수 있는 AI 횟수를 다 썼거나 요청이 너무 많아. 내일 다시 해줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",forbidden_origin:"이 주소에서는 AI 서버를 쓸 수 없어.",refused:"AI가 이 내용에는 답하지 않았어. 답변을 조금 바꿔서 다시 해줘.",not_configured:"AI 서버 설정이 아직 안 끝났어.",busy:"지금 AI 쪽이 붐벼. 잠시 뒤 다시 눌러줘.",cancelled:""};
   if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e?.code)) hideAI();
@@ -613,7 +624,8 @@ $("aiStart").onclick=async()=>{
     aiQuestions = (data?.questions||[]).slice(0,3).filter(x=>x&&x.q);
     if(!aiQuestions.length) throw {code:"invalid_json"};
     $("qaBox").innerHTML = aiQuestions.map((x,i)=>`<div style="display:flex;flex-direction:column;gap:6px"><label for="ans${i}">Q${i+1}. ${esc(String(x.q))}</label><span class="status">살펴보는 축: ${esc((x.axes||[]).join(", "))}</span><textarea id="ans${i}" maxlength="800" placeholder="떠오르는 대로 편하게 써줘"></textarea></div>`).join("");
-    $("qaBox").hidden=false; $("aiSubmitRow").hidden=false; $("aiStart").hidden=true; $("aiStatus").textContent="";
+    $("qaBox").hidden=false; $("aiSubmitRow").hidden=false; $("aiStart").hidden=true; $("aiStatus").textContent=""; $("aiNudge").hidden=true;
+    scrollIntoViewSmooth($("qaBox"));
   }catch(e){ $("aiStatus").textContent=aiError(e); $("aiStart").disabled=false; }
 };
 $("aiStop").onclick=()=>ctl?.abort();
