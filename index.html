@@ -474,26 +474,37 @@ const AI_RULES = `너는 WPI(황상민) 10축 개념을 빌린 비공식 자기�
 ${ALL.map(a=>`- ${a.name}: ${a.desc}`).join("\n")}
 성격 유형에 우열은 없고, 병리적 진단은 하지 않는다. 사용자에게 반말로 편하게 말한다.`;
 
-let sampleFn=null, ctl=null, aiQuestions=[];
+// GitHub Pages처럼 window.claude가 없는 곳에서 부를 프록시 주소 (README 참고).
+// 비워두면 그런 곳에서는 AI 인터뷰를 숨긴다. 예: "https://wpi-ai-proxy.<계정>.workers.dev"
+const AI_PROXY = "";
+
+let ai=null, ctl=null, aiQuestions=[];
+const AI_INTRO = $("aiIntro").textContent;
 async function initAI(){
-  $("aiStatus").textContent="";
-  if(!window.claude?.use){ hideAI(); return; }
-  try{ sampleFn = await window.claude.use("sample"); }catch(e){ sampleFn=null; }
-  if(!sampleFn) hideAI();
+  $("aiStatus").textContent=""; $("aiIntro").textContent=AI_INTRO;
+  $("aiStart").hidden=false; $("aiStart").disabled=false;
+  $("qaBox").hidden=true; $("aiSubmitRow").hidden=true; $("aiOut").innerHTML="";
+  ai=null;
+  if(window.claude?.use){
+    try{ const fn = await window.claude.use("sample"); if(fn) ai=claudeBackend(fn); }catch(e){}
+  }
+  if(!ai && AI_PROXY) ai=proxyBackend(AI_PROXY.replace(/\/+$/,""));
+  if(!ai) hideAI();
 }
 function hideAI(){
   $("aiIntro").textContent="이 화면에서는 AI 인터뷰를 쓸 수 없어. 아래 '결과를 프롬프트로 복사'로 다른 AI 채팅에서 이어갈 수 있어.";
   $("aiStart").hidden=true;
 }
 function aiError(e){
-  const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"요청이 너무 많아. 잠시 뒤 다시 눌러줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",cancelled:""};
+  const m={not_granted:"AI 사용이 허용되지 않았어. 아래 프롬프트 복사로 이어갈 수 있어.",sampling_disabled:"이 계정에서는 AI를 쓸 수 없어.",rate_limited:"오늘 쓸 수 있는 AI 횟수를 다 썼거나 요청이 너무 많아. 내일 다시 해줘.",session_expired:"로그인이 만료됐어. 다시 로그인해줘.",invalid_json:"질문을 만드는 데 실패했어. 다시 눌러줘.",forbidden_origin:"이 주소에서는 AI 서버를 쓸 수 없어.",refused:"AI가 이 내용에는 답하지 않았어. 답변을 조금 바꿔서 다시 해줘.",not_configured:"AI 서버 설정이 아직 안 끝났어.",cancelled:""};
   if(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(e?.code)) hideAI();
   return m[e?.code] ?? "연결이 끊겼어. 다시 시도해줘.";
 }
-$("aiStart").onclick=async()=>{
-  if(!sampleFn) return;
-  $("aiStart").disabled=true; $("aiStatus").textContent="질문을 만드는 중…";
-  const prompt = `${AI_RULES}
+
+/* claude.ai 아티팩트 안: window.claude로 직접 부른다. 프롬프트는 worker/src/index.js와 같게 유지. */
+function claudeBackend(sampleFn){
+  return {
+    questions: ()=>sampleFn.json(`${AI_RULES}
 
 사용자의 50문항(1~5점) 검사 결과다.
 ${scoreText()}
@@ -502,22 +513,10 @@ ${scoreText()}
 ${itemText()}
 
 이 프로파일에서 가장 불확실한 지점(1·2위 점수가 비슷한 축, 문항 응답이 서로 엇갈리는 축, 평평한 프로파일 등)을 골라, 그 축들을 가려낼 수 있는 구체적인 상황형 열린 질문 3개를 만들어라. 한 질문에 하나만 묻고, 정답을 암시하지 마라. 대학생 일상(조별과제, 동아리, 알바, 친구 관계 등) 장면이면 좋다.
-JSON만 출력: {"questions":[{"axes":["축이름","축이름"],"q":"질문"}]}`;
-  try{
-    const data = await sampleFn.json(prompt,{modelTier:"default", cache:false});
-    aiQuestions = (data?.questions||[]).slice(0,3).filter(x=>x&&x.q);
-    if(!aiQuestions.length) throw {code:"invalid_json"};
-    $("qaBox").innerHTML = aiQuestions.map((x,i)=>`<div style="display:flex;flex-direction:column;gap:6px"><label for="ans${i}">Q${i+1}. ${esc(String(x.q))}</label><span class="status">살펴보는 축: ${esc((x.axes||[]).join(", "))}</span><textarea id="ans${i}" placeholder="떠오르는 대로 편하게 써줘"></textarea></div>`).join("");
-    $("qaBox").hidden=false; $("aiSubmitRow").hidden=false; $("aiStart").hidden=true; $("aiStatus").textContent="";
-  }catch(e){ $("aiStatus").textContent=aiError(e); $("aiStart").disabled=false; }
-};
-$("aiStop").onclick=()=>ctl?.abort();
-$("aiSubmit").onclick=async()=>{
-  const qa = aiQuestions.map((x,i)=>`Q${i+1}(${(x.axes||[]).join(", ")}): ${x.q}\nA: ${($("ans"+i).value||"(무응답)").trim()}`).join("\n\n");
-  ctl=new AbortController();
-  $("aiSubmit").disabled=true; $("aiStop").hidden=false;
-  $("aiOut").innerHTML=`<p class="status">해석을 쓰는 중… (30초~1분 정도 걸려)</p>`;
-  const prompt = `${AI_RULES}
+JSON만 출력: {"questions":[{"axes":["축이름","축이름"],"q":"질문"}]}`,{modelTier:"default", cache:false}),
+    interpret: async(interview, onText, signal)=>{
+      const qa = interview.map((x,i)=>`Q${i+1}(${x.axes.join(", ")}): ${x.q}\nA: ${x.a||"(무응답)"}`).join("\n\n");
+      const prompt = `${AI_RULES}
 
 [문항 검사 점수 0~100]
 ${scoreText()}
@@ -543,8 +542,82 @@ ${qa}
 #### 확신도
 (근거가 약한 축과, 더 알아보려면 스스로 물어볼 질문 1개)
 전체 600자~900자. 인터뷰 답변을 짧게 인용해 근거를 보여라.`;
+      const {truncated} = await sampleFn(prompt,{modelTier:"default", cache:false, signal, onText:({text})=>onText(text)});
+      return {truncated};
+    }
+  };
+}
+
+/* 그 밖(GitHub Pages 등): 프록시. 프롬프트는 서버가 만들고, 여기선 응답만 보낸다. */
+function proxyBackend(base){
+  const post = async(path, body, signal)=>{
+    let res;
+    try{ res = await fetch(base+path,{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal}); }
+    catch(e){ throw {code: e?.name==="AbortError"?"cancelled":"network"}; }
+    if(!res.ok){
+      let code="upstream"; try{ code=(await res.json())?.error?.code||code; }catch(e){}
+      throw {code};
+    }
+    return res;
+  };
+  return {
+    questions: async()=> (await post("/questions",{answers})).json(),
+    interpret: async(interview, onText, signal)=>{
+      const res = await post("/interpret",{answers, interview}, signal);
+      let text="", result={truncated:false};
+      try{
+        await readSSE(res, (ev,data)=>{
+          if(ev==="text"){ text+=data.t; onText(text); }
+          else if(ev==="reset"){ text=""; onText(text); }
+          else if(ev==="done"){ if(data.refused) throw {code:"refused", text}; result={truncated:!!data.truncated}; }
+          else if(ev==="error"){ throw {code:data.code, text}; }
+        });
+      }catch(e){
+        if(e?.code) throw e;
+        throw {code: e?.name==="AbortError"?"cancelled":"network", text};
+      }
+      return result;
+    }
+  };
+}
+async function readSSE(res, onEvent){
+  const reader=res.body.getReader(), dec=new TextDecoder(); let buf="";
+  for(;;){
+    const {value,done}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true}).replace(/\r\n/g,"\n");
+    let i;
+    while((i=buf.indexOf("\n\n"))>=0){
+      const chunk=buf.slice(0,i); buf=buf.slice(i+2);
+      let ev="message", data="";
+      for(const line of chunk.split("\n")){
+        if(line.startsWith("event:")) ev=line.slice(6).trim();
+        else if(line.startsWith("data:")) data+=line.slice(5).trim();
+      }
+      if(data) onEvent(ev, JSON.parse(data));
+    }
+  }
+}
+
+$("aiStart").onclick=async()=>{
+  if(!ai) return;
+  $("aiStart").disabled=true; $("aiStatus").textContent="질문을 만드는 중…";
   try{
-    const {truncated} = await sampleFn(prompt,{modelTier:"default", cache:false, signal:ctl.signal, onText:({text})=>{$("aiOut").innerHTML=md(text);}});
+    const data = await ai.questions();
+    aiQuestions = (data?.questions||[]).slice(0,3).filter(x=>x&&x.q);
+    if(!aiQuestions.length) throw {code:"invalid_json"};
+    $("qaBox").innerHTML = aiQuestions.map((x,i)=>`<div style="display:flex;flex-direction:column;gap:6px"><label for="ans${i}">Q${i+1}. ${esc(String(x.q))}</label><span class="status">살펴보는 축: ${esc((x.axes||[]).join(", "))}</span><textarea id="ans${i}" maxlength="800" placeholder="떠오르는 대로 편하게 써줘"></textarea></div>`).join("");
+    $("qaBox").hidden=false; $("aiSubmitRow").hidden=false; $("aiStart").hidden=true; $("aiStatus").textContent="";
+  }catch(e){ $("aiStatus").textContent=aiError(e); $("aiStart").disabled=false; }
+};
+$("aiStop").onclick=()=>ctl?.abort();
+$("aiSubmit").onclick=async()=>{
+  const interview = aiQuestions.map((x,i)=>({axes:(x.axes||[]).map(String), q:String(x.q), a:($("ans"+i).value||"").trim()}));
+  ctl=new AbortController();
+  $("aiSubmit").disabled=true; $("aiStop").hidden=false;
+  $("aiOut").innerHTML=`<p class="status">해석을 쓰는 중… (30초~1분 정도 걸려)</p>`;
+  try{
+    const {truncated} = await ai.interpret(interview, text=>{$("aiOut").innerHTML=md(text);}, ctl.signal);
     if(truncated) $("aiOut").insertAdjacentHTML("beforeend",`<p class="status">답이 길어서 중간에 잘렸어.</p>`);
   }catch(e){
     $("aiOut").innerHTML = e?.text? md(e.text):"";
